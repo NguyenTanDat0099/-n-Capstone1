@@ -223,4 +223,137 @@ router.delete("/:id", (req, res) => {
   });
 });
 
+// === NEW ENDPOINTS FOR EXTENDED SCHEMA ===
+
+// GET schedules by date range (startDate, endDate)
+router.get("/date-range/:startDate/:endDate", (req, res) => {
+  const { startDate, endDate } = req.params;
+  const { technicianId } = req.query;
+
+  console.log(`[schedules] GET date-range ${startDate} to ${endDate}, technicianId=${technicianId}`);
+
+  let sql = `
+    SELECT s.*, t.code as ticket_code, t.equipment, t.status as ticket_status
+    FROM schedules s
+    LEFT JOIN tickets t ON s.ticket_id = t.id
+    WHERE (s.startDate BETWEEN ? AND ? OR s.endDate BETWEEN ? AND ? OR (s.startDate <= ? AND s.endDate >= ?))
+  `;
+
+  const params = [startDate, endDate, startDate, endDate, startDate, endDate];
+
+  if (technicianId) {
+    sql += " AND s.technician_id = ?";
+    params.push(technicianId);
+  }
+
+  sql += " ORDER BY s.startDate, s.endDate";
+
+  db.query(sql, params, (err, results) => {
+    if (err) {
+      console.error("[schedules] GET date-range error:", err);
+      return res.status(500).json({ message: "Lỗi khi tải lịch", error: err });
+    }
+    res.json(results || []);
+  });
+});
+
+// CREATE schedule with new schema
+router.post("/new", (req, res) => {
+  const { ticket_id, technician_id, startDate, endDate, note } = req.body;
+
+  console.log("[schedules] POST /new", { ticket_id, technician_id, startDate, endDate, note });
+
+  if (!ticket_id || !technician_id || !startDate || !endDate) {
+    return res
+      .status(400)
+      .json({ message: "ticket_id, technician_id, startDate, endDate bắt buộc" });
+  }
+
+  // Validate ticket exists
+  const validateSql = "SELECT id FROM tickets WHERE id = ?";
+  db.query(validateSql, [ticket_id], (err, ticketResult) => {
+    if (err) {
+      console.error("[schedules] Validate error:", err);
+      return res.status(500).json({ message: "Lỗi server", error: err });
+    }
+
+    if (!ticketResult || ticketResult.length === 0) {
+      return res.status(404).json({ message: "Phiếu không tồn tại" });
+    }
+
+    const sql =
+      "INSERT INTO schedules (ticket_id, technician_id, startDate, endDate, note) VALUES (?, ?, ?, ?, ?)";
+
+    db.query(sql, [ticket_id, technician_id, startDate, endDate, note || ""], (err, result) => {
+      if (err) {
+        console.error("[schedules] POST /new error:", err);
+        return res.status(500).json({ message: "Lỗi khi tạo lịch", error: err });
+      }
+
+      res.json({
+        message: "✅ Tạo lịch thành công",
+        id: result.insertId,
+        ticket_id,
+        technician_id,
+        startDate,
+        endDate,
+        note,
+      });
+    });
+  });
+});
+
+// UPDATE schedule with new schema
+router.put("/update/:id", (req, res) => {
+  const { id } = req.params;
+  const { ticket_id, technician_id, startDate, endDate, note } = req.body;
+
+  console.log("[schedules] PUT /update/:id", id, { ticket_id, technician_id, startDate, endDate, note });
+
+  let sql = "UPDATE schedules SET ";
+  const params = [];
+  const updates = [];
+
+  if (ticket_id !== undefined) {
+    updates.push("ticket_id = ?");
+    params.push(ticket_id);
+  }
+  if (technician_id !== undefined) {
+    updates.push("technician_id = ?");
+    params.push(technician_id);
+  }
+  if (startDate !== undefined) {
+    updates.push("startDate = ?");
+    params.push(startDate);
+  }
+  if (endDate !== undefined) {
+    updates.push("endDate = ?");
+    params.push(endDate);
+  }
+  if (note !== undefined) {
+    updates.push("note = ?");
+    params.push(note);
+  }
+
+  if (updates.length === 0) {
+    return res.status(400).json({ message: "Không có dữ liệu cần cập nhật" });
+  }
+
+  sql += updates.join(", ") + " WHERE id = ?";
+  params.push(id);
+
+  db.query(sql, params, (err, result) => {
+    if (err) {
+      console.error("[schedules] PUT /update error:", err);
+      return res.status(500).json({ message: "Lỗi khi cập nhật lịch", error: err });
+    }
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Lịch không tồn tại" });
+    }
+
+    res.json({ message: "✅ Cập nhật lịch thành công" });
+  });
+});
+
 module.exports = router;

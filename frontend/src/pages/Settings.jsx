@@ -29,17 +29,29 @@ export default function Settings() {
         const token = localStorage.getItem("token");
         const userId = localStorage.getItem("user_id");
 
+        console.log("[Settings] userId from localStorage:", userId);
+        console.log("[Settings] token:", token ? "exist" : "not found");
+
         if (!userId) {
+          console.error("[Settings] No userId found");
           alert("Chưa đăng nhập");
+          setLoading(false);
           return;
         }
 
-        const res = await axios.get(`/api/auth/user/${userId}`);
+        const url = `/api/auth/user/${userId}`;
+        console.log("[Settings] Fetching from:", url);
+        
+        const res = await axios.get(url);
+        console.log("[Settings] Response:", res.data);
+        
         setUser(res.data);
         setAvatarPreview(res.data.avatar || "https://via.placeholder.com/150");
       } catch (err) {
-        console.error("Lỗi tải thông tin:", err);
-        alert("Lỗi khi tải thông tin người dùng");
+        console.error("[Settings] Lỗi chi tiết:", err.response || err);
+        console.error("[Settings] Error message:", err.message);
+        console.error("[Settings] Error data:", err.response?.data);
+        alert("❌ Lỗi khi tải thông tin người dùng: " + (err.response?.data?.message || err.message));
       } finally {
         setLoading(false);
       }
@@ -127,27 +139,31 @@ export default function Settings() {
       return;
     }
 
-    // In a real app, you would upload to a server/cloud storage
-    // For now, we'll convert to base64 and save to DB
     try {
       const reader = new FileReader();
-      reader.onloadend = async () => {
+      reader.onload = async () => {
         const base64Avatar = reader.result;
         const userId = localStorage.getItem("user_id");
 
-        await axios.put("/api/auth/update-avatar", {
-          user_id: parseInt(userId),
-          avatar: base64Avatar,
-        });
+        try {
+          await axios.put("/api/auth/update-avatar", {
+            user_id: parseInt(userId),
+            avatar: base64Avatar,
+          });
 
-        alert("✅ Cập nhật avatar thành công");
-        setUser({ ...user, avatar: base64Avatar });
-        setAvatarFile(null);
+          alert("✅ Cập nhật avatar thành công");
+          setUser({ ...user, avatar: base64Avatar });
+          setAvatarFile(null);
+          setAvatarPreview(base64Avatar);
+        } catch (err) {
+          console.error("Lỗi upload:", err);
+          alert("❌ " + (err.response?.data?.message || "Lỗi cập nhật avatar"));
+        }
       };
       reader.readAsDataURL(avatarFile);
     } catch (err) {
       console.error("Lỗi:", err);
-      alert("❌ Lỗi cập nhật avatar");
+      alert("❌ Lỗi xử lý file");
     }
   };
 
@@ -160,72 +176,88 @@ export default function Settings() {
   }
 
   return (
-    <div className={`p-6 min-h-screen ${darkMode ? "bg-gray-900 text-white" : "bg-gray-50"}`}>
-      <h1 className="text-3xl font-bold mb-6">⚙️ Cài Đặt</h1>
+    <div className={`min-h-screen transition-colors ${darkMode ? "bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white" : "bg-gradient-to-br from-blue-50 via-white to-gray-50 text-gray-900"}`}>
+      <div className="max-w-6xl mx-auto p-4 md:p-8">
+        <h1 className="text-4xl font-bold mb-2">⚙️ Cài Đặt</h1>
+        <p className={`mb-8 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>Quản lý tài khoản và cài đặt hệ thống</p>
 
-      {/* Account Information Card */}
-      <div className={`${darkMode ? "bg-gray-800" : "bg-white"} rounded shadow-lg p-6 mb-6`}>
-        <h2 className="text-2xl font-bold mb-6">👤 Thông Tin Tài Khoản</h2>
+        {/* Account Information Card */}
+        <div className={`rounded-xl shadow-xl p-8 mb-6 transition-all ${darkMode ? "bg-gray-800 shadow-black/30" : "bg-white shadow-blue-100"} border ${darkMode ? "border-gray-700" : "border-gray-200"}`}>
+          <h2 className="text-3xl font-bold mb-8 flex items-center gap-2">👤 Thông Tin Tài Khoản</h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Avatar Section */}
-          <div className="flex flex-col items-center">
-            <img
-              src={avatarPreview}
-              alt="Avatar"
-              className="w-32 h-32 rounded-full object-cover mb-4 border-4 border-blue-500"
-            />
-            <div className="space-y-2 w-full">
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleAvatarSelect}
-                className="block w-full text-sm border rounded px-3 py-2"
-              />
-              <button
-                onClick={handleUploadAvatar}
-                disabled={!avatarFile}
-                className={`w-full px-4 py-2 rounded font-bold text-white ${
-                  avatarFile ? "bg-blue-500 hover:bg-blue-600" : "bg-gray-400 cursor-not-allowed"
-                }`}
-              >
-                📸 Cập Nhật Avatar
-              </button>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Avatar Section */}
+            <div className="flex flex-col items-center justify-center p-6 rounded-lg" style={{backgroundColor: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(59,130,246,0.05)'}}>
+              <div className="relative mb-6">
+                <img
+                  src={avatarPreview}
+                  alt="Avatar"
+                  className="w-40 h-40 rounded-full object-cover border-4 border-blue-500 shadow-lg"
+                />
+                <div className="absolute bottom-0 right-0 bg-blue-500 rounded-full p-2 text-white">
+                  📷
+                </div>
+              </div>
+              <div className="space-y-3 w-full">
+                <label className="block">
+                  <span className="block text-sm font-bold mb-2">Chọn ảnh đại diện</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarSelect}
+                    className={`block w-full text-sm border-2 rounded-lg px-4 py-3 cursor-pointer transition ${
+                      darkMode 
+                        ? "border-gray-600 bg-gray-700 hover:border-blue-500" 
+                        : "border-gray-300 hover:border-blue-500"
+                    }`}
+                  />
+                </label>
+                <button
+                  onClick={handleUploadAvatar}
+                  disabled={!avatarFile}
+                  className={`w-full px-4 py-3 rounded-lg font-bold text-white transition-all transform ${
+                    avatarFile 
+                      ? "bg-gradient-to-r from-blue-500 to-blue-600 hover:shadow-lg hover:-translate-y-0.5 cursor-pointer" 
+                      : "bg-gray-400 cursor-not-allowed opacity-60"
+                  }`}
+                >
+                  {avatarFile ? "✅ Lưu Avatar" : "📸 Chọn ảnh trước"}
+                </button>
+              </div>
             </div>
-          </div>
 
           {/* User Info Section */}
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-bold mb-1">Tên</label>
+              <label className="block text-sm font-bold mb-2">👤 Tên Đầy Đủ</label>
               <input
                 type="text"
                 value={user.fullname}
                 disabled
-                className={`w-full border rounded px-3 py-2 ${
-                  darkMode ? "bg-gray-700 border-gray-600" : "bg-gray-100"
+                className={`w-full border-2 rounded-lg px-4 py-3 ${
+                  darkMode ? "bg-gray-700 border-gray-600" : "bg-gray-100 border-gray-300"
                 }`}
               />
             </div>
             <div>
-              <label className="block text-sm font-bold mb-1">Email</label>
+              <label className="block text-sm font-bold mb-2">📧 Email</label>
               <input
                 type="email"
                 value={user.email}
                 disabled
-                className={`w-full border rounded px-3 py-2 ${
-                  darkMode ? "bg-gray-700 border-gray-600" : "bg-gray-100"
+                className={`w-full border-2 rounded-lg px-4 py-3 ${
+                  darkMode ? "bg-gray-700 border-gray-600" : "bg-gray-100 border-gray-300"
                 }`}
               />
             </div>
             <div>
-              <label className="block text-sm font-bold mb-1">Role</label>
+              <label className="block text-sm font-bold mb-2">🛠️ Vai Trò</label>
               <input
                 type="text"
                 value={user.role || "Technician"}
                 disabled
-                className={`w-full border rounded px-3 py-2 ${
-                  darkMode ? "bg-gray-700 border-gray-600" : "bg-gray-100"
+                className={`w-full border-2 rounded-lg px-4 py-3 ${
+                  darkMode ? "bg-gray-700 border-gray-600" : "bg-gray-100 border-gray-300"
                 }`}
               />
             </div>
@@ -233,69 +265,82 @@ export default function Settings() {
         </div>
 
         {/* Change Password Button */}
-        <div className="mt-6 border-t pt-6">
+        <div className="mt-8 pt-8 border-t" style={{borderColor: darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
           <button
             onClick={() => setShowPasswordForm(!showPasswordForm)}
-            className="px-6 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 font-bold"
+            className={`px-6 py-3 rounded-lg font-bold text-white transition-all transform flex items-center gap-2 ${
+              showPasswordForm
+                ? "bg-red-500 hover:bg-red-600 hover:shadow-lg hover:-translate-y-0.5"
+                : "bg-orange-500 hover:bg-orange-600 hover:shadow-lg hover:-translate-y-0.5"
+            }`}
           >
-            🔐 Đổi Mật Khẩu
+            {showPasswordForm ? "❌ Hủy Đổi Mật Khẩu" : "🔐 Đổi Mật Khẩu"}
           </button>
 
           {/* Password Form */}
           {showPasswordForm && (
-            <div className="mt-4 space-y-4 p-4 border rounded bg-gray-50 dark:bg-gray-700">
+            <div className={`mt-6 space-y-4 p-6 rounded-lg border-2 transition-all ${
+              darkMode 
+                ? "bg-gray-700 border-gray-600" 
+                : "bg-gradient-to-br from-orange-50 to-orange-100 border-orange-300"
+            }`}>
+              <h3 className="font-bold text-lg mb-4">Nhập thông tin để đổi mật khẩu</h3>
               <div>
-                <label className="block text-sm font-bold mb-2">Mật Khẩu Cũ</label>
+                <label className="block text-sm font-bold mb-2">🔒 Mật Khẩu Cũ</label>
                 <input
                   type="password"
                   value={passwordForm.old_password}
                   onChange={(e) =>
                     setPasswordForm({ ...passwordForm, old_password: e.target.value })
                   }
-                  className={`w-full border rounded px-3 py-2 ${
-                    darkMode ? "bg-gray-600 border-gray-500" : ""
+                  className={`w-full border-2 rounded-lg px-4 py-2 focus:outline-none focus:border-orange-500 transition ${
+                    darkMode ? "bg-gray-600 border-gray-500" : "bg-white border-gray-300"
                   }`}
                   placeholder="Nhập mật khẩu cũ"
                 />
               </div>
               <div>
-                <label className="block text-sm font-bold mb-2">Mật Khẩu Mới</label>
+                <label className="block text-sm font-bold mb-2">🔑 Mật Khẩu Mới</label>
                 <input
                   type="password"
                   value={passwordForm.new_password}
                   onChange={(e) =>
                     setPasswordForm({ ...passwordForm, new_password: e.target.value })
                   }
-                  className={`w-full border rounded px-3 py-2 ${
-                    darkMode ? "bg-gray-600 border-gray-500" : ""
+                  className={`w-full border-2 rounded-lg px-4 py-2 focus:outline-none focus:border-orange-500 transition ${
+                    darkMode ? "bg-gray-600 border-gray-500" : "bg-white border-gray-300"
                   }`}
                   placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)"
                 />
               </div>
               <div>
-                <label className="block text-sm font-bold mb-2">Xác Nhận Mật Khẩu Mới</label>
+                <label className="block text-sm font-bold mb-2">✓ Xác Nhận Mật Khẩu Mới</label>
                 <input
                   type="password"
                   value={passwordForm.confirm_password}
                   onChange={(e) =>
                     setPasswordForm({ ...passwordForm, confirm_password: e.target.value })
                   }
-                  className={`w-full border rounded px-3 py-2 ${
-                    darkMode ? "bg-gray-600 border-gray-500" : ""
+                  className={`w-full border-2 rounded-lg px-4 py-2 focus:outline-none focus:border-orange-500 transition ${
+                    darkMode ? "bg-gray-600 border-gray-500" : "bg-white border-gray-300"
                   }`}
                   placeholder="Xác nhận mật khẩu mới"
                 />
               </div>
-              <div className="flex gap-3">
+              <div className="flex gap-3 pt-4">
                 <button
                   onClick={handleChangePassword}
-                  className="flex-1 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 font-bold"
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:shadow-lg hover:-translate-y-0.5 font-bold transition-all transform"
                 >
-                  ✅ Xác Nhận
+                  ✅ Xác Nhận Đổi Mật Khẩu
                 </button>
                 <button
                   onClick={() => setShowPasswordForm(false)}
-                  className="flex-1 px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 font-bold"
+                  className={`flex-1 px-4 py-3 rounded-lg font-bold transition-all transform ${
+                    darkMode
+                      ? "bg-gray-600 hover:bg-gray-500 text-white"
+                      : "bg-gray-300 hover:bg-gray-400 text-gray-900"
+                  } hover:shadow-lg hover:-translate-y-0.5`}
                 >
                   ❌ Hủy
                 </button>
@@ -306,74 +351,96 @@ export default function Settings() {
       </div>
 
       {/* System Settings Card */}
-      <div className={`${darkMode ? "bg-gray-800" : "bg-white"} rounded shadow-lg p-6`}>
-        <h2 className="text-2xl font-bold mb-6">🛠️ Thiết Lập Hệ Thống</h2>
+      <div className={`rounded-xl shadow-xl p-8 mb-8 transition-all ${darkMode ? "bg-gray-800 shadow-black/30" : "bg-white shadow-blue-100"} border ${darkMode ? "border-gray-700" : "border-gray-200"}`}>
+        <h2 className="text-3xl font-bold mb-8 flex items-center gap-2">🛠️ Thiết Lập Hệ Thống</h2>
 
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Dark Mode Toggle */}
-          <div className="flex items-center justify-between p-4 border rounded">
+          <div className={`flex items-center justify-between p-6 rounded-lg border-2 transition ${
+            darkMode 
+              ? "bg-gray-700 border-gray-600 hover:border-blue-500" 
+              : "bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 hover:border-blue-400"
+          }`}>
             <div>
               <h3 className="font-bold text-lg">🌙 Chế Độ Tối</h3>
-              <p className="text-sm text-gray-500">Bật/Tắt chế độ tối</p>
+              <p className={`text-sm ${darkMode ? "text-gray-400" : "text-gray-600"}`}>Chuyển đổi giữa sáng và tối</p>
             </div>
             <button
               onClick={handleToggleDarkMode}
-              className={`relative w-14 h-8 rounded-full transition ${
-                darkMode ? "bg-blue-600" : "bg-gray-300"
+              className={`relative w-16 h-9 rounded-full transition-all ${
+                darkMode ? "bg-blue-600 shadow-lg shadow-blue-500/50" : "bg-gray-300"
               }`}
             >
               <span
-                className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform ${
-                  darkMode ? "transform translate-x-6" : ""
+                className={`absolute top-1.5 left-1.5 w-6 h-6 bg-white rounded-full transition-all duration-300 flex items-center justify-center font-bold text-xs ${
+                  darkMode ? "translate-x-7" : ""
                 }`}
-              />
+              >
+                {darkMode ? "🌙" : "☀️"}
+              </span>
             </button>
           </div>
 
           {/* Notifications Toggle */}
-          <div className="flex items-center justify-between p-4 border rounded">
+          <div className={`flex items-center justify-between p-6 rounded-lg border-2 transition ${
+            darkMode 
+              ? "bg-gray-700 border-gray-600 hover:border-blue-500" 
+              : "bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200 hover:border-purple-400"
+          }`}>
             <div>
               <h3 className="font-bold text-lg">🔔 Thông Báo</h3>
-              <p className="text-sm text-gray-500">Bật/Tắt thông báo hệ thống</p>
+              <p className={`text-sm ${darkMode ? "text-gray-400" : "text-gray-600"}`}>Bật/tắt thông báo hệ thống</p>
             </div>
             <button
               onClick={handleToggleNotifications}
-              className={`relative w-14 h-8 rounded-full transition ${
-                notifications ? "bg-blue-600" : "bg-gray-300"
+              className={`relative w-16 h-9 rounded-full transition-all ${
+                notifications ? "bg-purple-600 shadow-lg shadow-purple-500/50" : "bg-gray-300"
               }`}
             >
               <span
-                className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform ${
-                  notifications ? "transform translate-x-6" : ""
+                className={`absolute top-1.5 left-1.5 w-6 h-6 bg-white rounded-full transition-all duration-300 flex items-center justify-center font-bold text-xs ${
+                  notifications ? "translate-x-7" : ""
                 }`}
-              />
+              >
+                {notifications ? "📢" : "🔇"}
+              </span>
             </button>
           </div>
 
-          {/* Theme Info */}
-          <div className="p-4 border rounded bg-blue-50 dark:bg-blue-900">
-            <p className="text-sm">
-              <strong>Chế độ hiện tại:</strong> {darkMode ? "Tối 🌙" : "Sáng ☀️"}
+          {/* Theme Status */}
+          <div className={`p-6 rounded-lg border-2 ${
+            darkMode 
+              ? "bg-blue-900/30 border-blue-600/50" 
+              : "bg-blue-100 border-blue-300"
+          }`}>
+            <p className="text-sm font-semibold mb-2">
+              📊 <strong>Trạng Thái Hiện Tại:</strong>
             </p>
-            <p className="text-sm">
-              <strong>Thông báo:</strong> {notifications ? "Bật 📢" : "Tắt 🔇"}
-            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className={`p-3 rounded text-center font-bold ${darkMode ? "bg-blue-800" : "bg-blue-200"}`}>
+                Chế độ: {darkMode ? "🌙 Tối" : "☀️ Sáng"}
+              </div>
+              <div className={`p-3 rounded text-center font-bold ${darkMode ? "bg-purple-800" : "bg-purple-200"}`}>
+                Thông báo: {notifications ? "📢 Bật" : "🔇 Tắt"}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Logout Button */}
-      <div className="mt-6 text-center">
+      <div className="mt-8 text-center">
         <button
           onClick={() => {
             localStorage.clear();
             window.location.href = "/login";
           }}
-          className="px-6 py-3 bg-red-500 text-white rounded hover:bg-red-600 font-bold text-lg"
+          className="px-8 py-4 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:shadow-xl hover:-translate-y-1 font-bold text-lg transition-all transform"
         >
-          🚪 Đăng Xuất
+          🚪 Đăng Xuất Khỏi Hệ Thống
         </button>
       </div>
+    </div>
     </div>
   );
 }
