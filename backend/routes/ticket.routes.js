@@ -95,6 +95,47 @@ router.get("/:id/comments", (req, res) => {
   });
 });
 
+// POST comment for a ticket (non-realtime fallback)
+router.post("/:id/comments", (req, res) => {
+  const id = req.params.id;
+  const { user_name, message } = req.body || {};
+  console.log("[tickets] POST /:id/comments", id, { user_name });
+
+  if (!message || typeof message !== "string") {
+    return res.status(400).json({ message: "Nội dung bình luận là bắt buộc" });
+  }
+
+  const ticketId = parseInt(id, 10);
+  if (isNaN(ticketId)) {
+    return res.status(400).json({ message: "ID phiếu không hợp lệ" });
+  }
+
+  const safeName = (user_name || "Technician").toString().slice(0, 100);
+  const sql = "INSERT INTO comments (ticket_id, user_name, message) VALUES (?, ?, ?)";
+  db.query(sql, [ticketId, safeName, message], (err, result) => {
+    if (err) {
+      console.error("[tickets] POST comment error:", err);
+      if (err.code === "ER_NO_SUCH_TABLE") {
+        return res.status(500).json({
+          message: "Thiếu bảng comments trong database.",
+          hint: "CREATE TABLE comments (id INT AUTO_INCREMENT PRIMARY KEY, ticket_id INT, user_name VARCHAR(100), message TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);",
+          error: err,
+        });
+      }
+      return res.status(500).json({ message: "Lỗi khi lưu bình luận", error: err });
+    }
+
+    const comment = {
+      id: result.insertId,
+      ticket_id: ticketId,
+      user_name: safeName,
+      message,
+      created_at: new Date().toISOString(),
+    };
+    res.status(201).json(comment);
+  });
+});
+
 // helper to create new ticket
 const createTicket = (req, res) => {
   console.log("[tickets] CREATE payload:", req.body);

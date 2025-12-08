@@ -3,6 +3,17 @@ const db = require("../db");
 
 const router = express.Router();
 
+// helper: log activity to ticket_logs (best-effort)
+const logTicketActivity = (ticketId, status, notes) => {
+  if (!ticketId) return;
+  const sql = "INSERT INTO ticket_logs (ticket_id, status, notes, created_at) VALUES (?, ?, ?, NOW())";
+  db.query(sql, [ticketId, status || null, notes || null], (err) => {
+    if (err) {
+      console.error("[schedules] logTicketActivity error:", err.message || err);
+    }
+  });
+};
+
 // GET schedules by month (for calendar view) - support both date and startDate/endDate
 router.get("/month/:year/:month", (req, res) => {
   const { year, month } = req.params;
@@ -200,6 +211,9 @@ router.post("/new", (req, res) => {
       }
       
       const scheduleId = result.insertId;
+      // log activity to ticket_logs (best-effort)
+      const activityNote = `Tạo lịch từ ${startDate} đến ${endDate}${technician_id ? ` - KTV: ${technician_id}` : ""}`;
+      logTicketActivity(ticket_id, "schedule_created", activityNote);
       
       // Fetch the created schedule with ticket info
       const selectSql = `
@@ -300,6 +314,9 @@ router.put("/:id", (req, res) => {
       if (result.affectedRows === 0) {
         return res.status(404).json({ message: "Lịch không tồn tại" });
       }
+      // log activity
+      const activityNote = `Cập nhật lịch${startDate ? ` từ ${startDate}` : ""}${endDate ? ` đến ${endDate}` : ""}${technician_id ? ` - KTV: ${technician_id}` : ""}`;
+      logTicketActivity(ticket_id || null, status || "schedule_updated", activityNote);
       res.json({ message: "✅ Cập nhật lịch thành công" });
     });
   }
@@ -356,6 +373,8 @@ router.put("/update/:id", (req, res) => {
       if (result.affectedRows === 0) {
         return res.status(404).json({ message: "Lịch không tồn tại" });
       }
+      const activityNote = `Cập nhật lịch${startDate ? ` từ ${startDate}` : ""}${endDate ? ` đến ${endDate}` : ""}${technician_id ? ` - KTV: ${technician_id}` : ""}`;
+      logTicketActivity(ticket_id, "schedule_updated", activityNote);
       res.json({ message: "✅ Cập nhật lịch thành công" });
     });
   });
@@ -376,6 +395,7 @@ router.delete("/:id", (req, res) => {
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: "Lịch không tồn tại" });
     }
+    logTicketActivity(null, "schedule_deleted", `Xóa lịch ${id}`);
     res.json({ message: "✅ Xóa lịch thành công" });
   });
 });

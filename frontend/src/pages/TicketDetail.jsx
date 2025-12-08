@@ -10,6 +10,7 @@ export default function TicketDetail() {
   const [ticket, setTicket] = useState(null);
   const [notes, setNotes] = useState("");
   const [logs, setLogs] = useState([]);
+  const [schedules, setSchedules] = useState([]);
   const [currentUserRole, setCurrentUserRole] = useState(null);
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
@@ -37,6 +38,15 @@ export default function TicketDetail() {
       } catch (cErr) {
         console.error("TicketDetail.fetch comments", cErr.response || cErr);
         setComments([]);
+      }
+
+      // fetch schedules for this ticket
+      try {
+        const schedulesRes = await axios.get(`http://localhost:5000/api/schedules?ticket_id=${id}`);
+        setSchedules(schedulesRes.data || []);
+      } catch (sErr) {
+        console.error("TicketDetail.fetch schedules", sErr.response || sErr);
+        setSchedules([]);
       }
     } catch (err) {
       console.error("TicketDetail.fetch", err.response || err);
@@ -208,12 +218,9 @@ export default function TicketDetail() {
     doc.save(`ticket_${ticket.code || ticket.id}.pdf`);
   };
 
-  const handleSendComment = () => {
+  const handleSendComment = async () => {
     if (!newComment.trim()) return;
-    if (!socketRef.current || !socketRef.current.connected) {
-      alert("Không thể gửi bình luận (mất kết nối realtime). Thử lại sau.");
-      return;
-    }
+    
     const userStr = localStorage.getItem("user");
     let userName = "Technician";
     try {
@@ -225,12 +232,29 @@ export default function TicketDetail() {
       // ignore
     }
 
-    socketRef.current.emit("comment:add", {
-      ticketId: id,
-      userName,
-      message: newComment.trim(),
-    });
-    setNewComment("");
+    // Try socket first, fallback to REST API
+    if (socketRef.current && socketRef.current.connected) {
+      socketRef.current.emit("comment:add", {
+        ticketId: id,
+        userName,
+        message: newComment.trim(),
+      });
+      setNewComment("");
+    } else {
+      // Fallback: use REST API
+      try {
+        const res = await axios.post(`http://localhost:5000/api/tickets/${id}/comments`, {
+          user_name: userName,
+          message: newComment.trim(),
+        });
+        // Add comment to local state
+        setComments(prev => [...prev, res.data]);
+        setNewComment("");
+      } catch (err) {
+        console.error("Error posting comment:", err);
+        alert("❌ Lỗi khi gửi bình luận: " + (err.response?.data?.message || err.message));
+      }
+    }
   };
 
   if (!ticket) return <div className="p-6">Đang tải...</div>;
@@ -358,6 +382,7 @@ export default function TicketDetail() {
                     placeholder="Nhập bình luận..."
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSendComment()}
                   />
                   <button
                     type="button"
@@ -369,6 +394,45 @@ export default function TicketDetail() {
                 </div>
               </>
             )}
+          </div>
+
+          {/* Schedules section */}
+          <div className="bg-white p-6 rounded shadow max-h-[200px] overflow-y-auto">
+            <h4 className="text-sm font-semibold mb-3">📅 Lịch Trình Bổ Sung</h4>
+            {schedules.length === 0 ? (
+              <div className="text-xs text-gray-500">Chưa có lịch trình nào cho phiếu này.</div>
+            ) : (
+              <ul className="space-y-2 text-xs">
+                {schedules.map((sch) => (
+                  <li key={sch.id} className="border rounded p-2 bg-blue-50">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-semibold text-blue-700">
+                        {sch.startDate} → {sch.endDate}
+                      </span>
+                      <span className="text-[10px] bg-blue-200 text-blue-800 px-2 py-0.5 rounded">
+                        {sch.status || "Scheduled"}
+                      </span>
+                    </div>
+                    {sch.note && (
+                      <div className="text-gray-600 mt-1">
+                        <span className="font-medium">Ghi chú:</span> {sch.note}
+                      </div>
+                    )}
+                    {sch.technician_id && (
+                      <div className="text-gray-500 text-[10px] mt-1">
+                        KTV ID: {sch.technician_id}
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button
+              onClick={() => navigate("/schedules")}
+              className="mt-3 text-xs text-blue-600 hover:underline"
+            >
+              ➕ Thêm/Xem lịch trình
+            </button>
           </div>
         </div>
       </div>
