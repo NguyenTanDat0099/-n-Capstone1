@@ -124,6 +124,18 @@ export default function Schedules() {
     }
   };
 
+  // Translate status to Vietnamese
+  const translateStatus = (status) => {
+    const translations = {
+      "Pending": "Chờ xử lý",
+      "In Progress": "Đang xử lý",
+      "Completed": "Hoàn thành",
+      "Cancelled": "Hủy bỏ",
+      "Scheduled": "Đã lên lịch",
+    };
+    return translations[status] || status;
+  };
+
   // Reset form
   const resetForm = () => {
     setShowForm(false);
@@ -441,7 +453,7 @@ export default function Schedules() {
                         </div>
                         <div>
                           <p className="text-xs font-semibold opacity-75">Trạng Thái</p>
-                          <p className="text-lg font-bold">{sch.status}</p>
+                          <p className="text-lg font-bold">{translateStatus(sch.status)}</p>
                         </div>
                         <div>
                           <p className="text-xs font-semibold opacity-75">Thiết Bị</p>

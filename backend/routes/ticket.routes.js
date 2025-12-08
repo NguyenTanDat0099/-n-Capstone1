@@ -98,20 +98,21 @@ router.get("/:id/comments", (req, res) => {
 // helper to create new ticket
 const createTicket = (req, res) => {
   console.log("[tickets] CREATE payload:", req.body);
-  const { code, equipment, priority, status, due_date, location, notes, assigned_to, description } = req.body || {};
+  const { code, equipment, priority, status, due_date, location, assigned_to, description } = req.body || {};
 
   if (!code || !equipment) {
     return res.status(400).json({ message: "Mã phiếu và Thiết bị là bắt buộc" });
   }
 
-  const sql = "INSERT INTO tickets (code, equipment, priority, status, due_date, location, notes, assigned_to, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-  db.query(sql, [code, equipment, priority || null, status || null, due_date || null, location || null, notes || null, assigned_to || null, description || null], (err, result) => {
+  // Use correct column name based on what exists in database
+  const sql = "INSERT INTO tickets (code, equipment, priority, status, due_date, location, assigned_to, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+  db.query(sql, [code, equipment, priority || null, status || null, due_date || null, location || null, assigned_to || null, description || null], (err, result) => {
     if (err) {
       console.error("[tickets] CREATE error:", err);
       if (err.code === "ER_BAD_FIELD_ERROR") {
         return res.status(500).json({
           message: "Thiếu trường trong bảng tickets.",
-          hint: "ALTER TABLE tickets ADD COLUMN assigned_to VARCHAR(100); ALTER TABLE tickets ADD COLUMN description TEXT;",
+          hint: "Kiểm tra lại cấu trúc bảng tickets",
           error: err,
         });
       }

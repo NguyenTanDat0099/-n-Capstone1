@@ -3,7 +3,7 @@ const db = require("../db");
 
 const router = express.Router();
 
-// GET schedules by month (for calendar view) - MUST BE BEFORE /:id
+// GET schedules by month (for calendar view) - support both date and startDate/endDate
 router.get("/month/:year/:month", (req, res) => {
   const { year, month } = req.params;
   const { userId } = req.query;
@@ -13,14 +13,17 @@ router.get("/month/:year/:month", (req, res) => {
   const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
   const endDate = new Date(year, month, 0).toISOString().slice(0, 10);
 
+  // Query that works with both single date and range dates
   let sql = `
     SELECT s.*, t.code as ticket_code, t.equipment, t.status as ticket_status
     FROM schedules s
     LEFT JOIN tickets t ON s.ticket_id = t.id
-    WHERE s.date BETWEEN ? AND ?
+    WHERE 
+      (s.date BETWEEN ? AND ?) OR
+      (s.startDate <= ? AND s.endDate >= ?)
   `;
   
-  const params = [startDate, endDate];
+  const params = [startDate, endDate, endDate, startDate];
   
   // Filter by userId if provided
   if (userId) {
@@ -28,44 +31,59 @@ router.get("/month/:year/:month", (req, res) => {
     params.push(userId);
   }
   
-  sql += " ORDER BY s.date, s.shift";
+  sql += " ORDER BY COALESCE(s.startDate, s.date), s.shift";
 
   db.query(sql, params, (err, results) => {
     if (err) {
       console.error("[schedules] GET month error:", err);
-      return res.status(500).json({ message: "Lỗi khi tải lịch tháng", error: err });
+      return res.status(500).json({ message: "Lỗi khi tải lịch tháng", error: err.message });
     }
     res.json(results || []);
   });
 });
 
-// GET all schedules (with filters)
+// GET all schedules (with filters: date, ticket_id, technician_id, month, year)
 router.get("/", (req, res) => {
-  console.log("[schedules] GET /");
-  const { date, ticket_id, technician_id } = req.query;
+  console.log("[schedules] GET /", req.query);
+  const { date, ticket_id, technician_id, month, year } = req.query;
 
-  let sql = "SELECT * FROM schedules WHERE 1=1";
+  let sql = `
+    SELECT s.*, t.code as ticket_code, t.equipment, t.status as ticket_status
+    FROM schedules s
+    LEFT JOIN tickets t ON s.ticket_id = t.id
+    WHERE 1=1
+  `;
   const params = [];
 
   if (date) {
-    sql += " AND date = ?";
+    sql += " AND s.date = ?";
     params.push(date);
   }
+  
   if (ticket_id) {
-    sql += " AND ticket_id = ?";
+    sql += " AND s.ticket_id = ?";
     params.push(ticket_id);
   }
+  
   if (technician_id) {
-    sql += " AND technician_id = ?";
+    sql += " AND s.technician_id = ?";
     params.push(technician_id);
   }
 
-  sql += " ORDER BY date DESC, shift ASC";
+  // Support month/year filter
+  if (month && year) {
+    const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
+    const endDate = new Date(year, month, 0).toISOString().slice(0, 10);
+    sql += " AND ((s.date BETWEEN ? AND ?) OR (s.startDate <= ? AND s.endDate >= ?))";
+    params.push(startDate, endDate, endDate, startDate);
+  }
+
+  sql += " ORDER BY COALESCE(s.startDate, s.date) ASC, s.shift ASC";
 
   db.query(sql, params, (err, results) => {
     if (err) {
       console.error("[schedules] GET error:", err);
-      return res.status(500).json({ message: "Lỗi khi tải lịch trình", error: err });
+      return res.status(500).json({ message: "Lỗi khi tải lịch trình", error: err.message });
     }
     res.json(results || []);
   });
@@ -86,7 +104,7 @@ router.get("/:id", (req, res) => {
   db.query(sql, [id], (err, results) => {
     if (err) {
       console.error("[schedules] GET /:id error:", err);
-      return res.status(500).json({ message: "Lỗi khi tải lịch", error: err });
+      return res.status(500).json({ message: "Lỗi khi tải lịch", error: err.message });
     }
     if (!results || results.length === 0) {
       return res.status(404).json({ message: "Không tìm thấy lịch" });
@@ -95,24 +113,22 @@ router.get("/:id", (req, res) => {
   });
 });
 
-// CREATE new schedule (single day)
+// CREATE new schedule (single day with date)
 router.post("/", (req, res) => {
   const { ticket_id, technician_id, date, shift, status } = req.body;
   console.log("[schedules] POST /", { ticket_id, date, shift });
 
-  // Validate required fields
   if (!ticket_id || !date) {
     return res.status(400).json({ message: "ticket_id và date là bắt buộc" });
   }
 
-  // Validate ticket exists
   db.query("SELECT id FROM tickets WHERE id = ?", [ticket_id], (checkErr, checkResults) => {
     if (checkErr) {
       console.error("[schedules] POST ticket check error:", checkErr);
-      return res.status(500).json({ message: "Lỗi khi kiểm tra phiếu", error: checkErr });
+      return res.status(500).json({ message: "Lỗi khi kiểm tra phiếu", error: checkErr.message });
     }
     if (!checkResults || checkResults.length === 0) {
-      return res.status(404).json({ message: "Phiếu không tồn tại" });
+      return res.status(404).json({ message: `Phiếu ID ${ticket_id} không tồn tại` });
     }
 
     const sql = `
@@ -130,12 +146,11 @@ router.post("/", (req, res) => {
     db.query(sql, values, (err, result) => {
       if (err) {
         console.error("[schedules] POST error:", err);
-        return res.status(500).json({ message: "Lỗi khi tạo lịch", error: err });
+        return res.status(500).json({ message: "Lỗi khi tạo lịch", error: err.message });
       }
       res.status(201).json({
-        message: "Tạo lịch thành công",
+        message: "✅ Tạo lịch thành công",
         id: result.insertId,
-        ...req.body,
       });
     });
   });
@@ -146,59 +161,78 @@ router.post("/new", (req, res) => {
   const { ticket_id, technician_id, startDate, endDate, note } = req.body;
   console.log("[schedules] POST /new", { ticket_id, startDate, endDate, technician_id });
 
-  // Validate required fields
   if (!ticket_id || !startDate || !endDate) {
     console.warn("[schedules] Missing required fields:", { ticket_id, startDate, endDate });
     return res.status(400).json({ message: "ticket_id, startDate, endDate là bắt buộc" });
   }
 
-  // Validate ticket exists
   db.query("SELECT id FROM tickets WHERE id = ?", [ticket_id], (checkErr, checkResults) => {
     if (checkErr) {
       console.error("[schedules] POST /new ticket check error:", checkErr);
       return res.status(500).json({ message: "Lỗi khi kiểm tra phiếu", error: checkErr.message });
     }
     
-    console.log("[schedules] Ticket check result:", { ticket_id, found: checkResults?.length > 0, count: checkResults?.length });
+    console.log("[schedules] Ticket check result:", { ticket_id, found: checkResults?.length > 0 });
     
     if (!checkResults || checkResults.length === 0) {
       console.warn("[schedules] Ticket not found:", ticket_id);
       return res.status(404).json({ message: `Phiếu ID ${ticket_id} không tồn tại` });
     }
 
-    const sql = `
-      INSERT INTO schedules (ticket_id, technician_id, startDate, endDate, note)
-      VALUES (?, ?, ?, ?, ?)
+    // Set date to startDate for compatibility
+    const insertSql = `
+      INSERT INTO schedules (ticket_id, technician_id, date, startDate, endDate, note)
+      VALUES (?, ?, ?, ?, ?, ?)
     `;
     const values = [
       ticket_id,
       technician_id || null,
       startDate,
+      startDate,
       endDate,
       note || "",
     ];
 
-    db.query(sql, values, (err, result) => {
+    db.query(insertSql, values, (err, result) => {
       if (err) {
         console.error("[schedules] POST /new insert error:", err);
         return res.status(500).json({ message: "Lỗi khi tạo lịch", error: err.message });
       }
-      console.log("[schedules] Schedule created:", { id: result.insertId });
-      res.status(201).json({
-        message: "✅ Tạo lịch thành công",
-        id: result.insertId,
+      
+      const scheduleId = result.insertId;
+      
+      // Fetch the created schedule with ticket info
+      const selectSql = `
+        SELECT s.*, t.code as ticket_code, t.equipment, t.status as ticket_status
+        FROM schedules s
+        LEFT JOIN tickets t ON s.ticket_id = t.id
+        WHERE s.id = ?
+      `;
+      
+      db.query(selectSql, [scheduleId], (selectErr, selectResults) => {
+        if (selectErr) {
+          console.error("[schedules] Error fetching created schedule:", selectErr);
+          return res.status(201).json({
+            message: "✅ Tạo lịch thành công",
+            id: scheduleId,
+          });
+        }
+        
+        res.status(201).json({
+          message: "✅ Tạo lịch thành công",
+          data: selectResults[0] || {},
+        });
       });
     });
   });
 });
 
-// UPDATE schedule (any format)
+// UPDATE schedule
 router.put("/:id", (req, res) => {
   const id = req.params.id;
   const { ticket_id, technician_id, date, shift, status, startDate, endDate, note } = req.body;
   console.log("[schedules] PUT /:id", id, req.body);
 
-  // If ticket_id changes, validate new ticket exists
   if (ticket_id) {
     db.query("SELECT id FROM tickets WHERE id = ?", [ticket_id], (checkErr, checkResults) => {
       if (checkErr || !checkResults || checkResults.length === 0) {
@@ -229,6 +263,10 @@ router.put("/:id", (req, res) => {
     if (startDate !== undefined) {
       fields.push("startDate = ?");
       values.push(startDate);
+      if (!date) {
+        fields.push("date = ?");
+        values.push(startDate);
+      }
     }
     if (endDate !== undefined) {
       fields.push("endDate = ?");
@@ -257,17 +295,17 @@ router.put("/:id", (req, res) => {
     db.query(sql, values, (err, result) => {
       if (err) {
         console.error("[schedules] PUT error:", err);
-        return res.status(500).json({ message: "Lỗi khi cập nhật lịch", error: err });
+        return res.status(500).json({ message: "Lỗi khi cập nhật lịch", error: err.message });
       }
       if (result.affectedRows === 0) {
         return res.status(404).json({ message: "Lịch không tồn tại" });
       }
-      res.json({ message: "Cập nhật lịch thành công" });
+      res.json({ message: "✅ Cập nhật lịch thành công" });
     });
   }
 });
 
-// UPDATE schedule (PUT /update/:id - alternative endpoint)
+// UPDATE schedule (alternative endpoint)
 router.put("/update/:id", (req, res) => {
   const id = req.params.id;
   const { ticket_id, technician_id, startDate, endDate, note } = req.body;
@@ -277,25 +315,25 @@ router.put("/update/:id", (req, res) => {
     return res.status(400).json({ message: "ticket_id là bắt buộc" });
   }
 
-  // Validate ticket exists
   db.query("SELECT id FROM tickets WHERE id = ?", [ticket_id], (checkErr, checkResults) => {
     if (checkErr || !checkResults || checkResults.length === 0) {
-      return res.status(404).json({ message: "Phiếu không tồn tại" });
+      return res.status(404).json({ message: `Phiếu ID ${ticket_id} không tồn tại` });
     }
 
     const fields = [];
     const values = [];
 
-    if (ticket_id !== undefined) {
-      fields.push("ticket_id = ?");
-      values.push(ticket_id);
-    }
+    fields.push("ticket_id = ?");
+    values.push(ticket_id);
+
     if (technician_id !== undefined) {
       fields.push("technician_id = ?");
       values.push(technician_id);
     }
     if (startDate !== undefined) {
       fields.push("startDate = ?");
+      values.push(startDate);
+      fields.push("date = ?");
       values.push(startDate);
     }
     if (endDate !== undefined) {
@@ -307,17 +345,13 @@ router.put("/update/:id", (req, res) => {
       values.push(note);
     }
 
-    if (fields.length === 0) {
-      return res.status(400).json({ message: "Không có trường nào để cập nhật" });
-    }
-
     values.push(id);
     const sql = `UPDATE schedules SET ${fields.join(", ")} WHERE id = ?`;
 
     db.query(sql, values, (err, result) => {
       if (err) {
         console.error("[schedules] PUT /update/:id error:", err);
-        return res.status(500).json({ message: "Lỗi khi cập nhật lịch", error: err });
+        return res.status(500).json({ message: "Lỗi khi cập nhật lịch", error: err.message });
       }
       if (result.affectedRows === 0) {
         return res.status(404).json({ message: "Lịch không tồn tại" });
@@ -337,145 +371,12 @@ router.delete("/:id", (req, res) => {
   db.query(sql, [id], (err, result) => {
     if (err) {
       console.error("[schedules] DELETE error:", err);
-      return res.status(500).json({ message: "Lỗi khi xóa lịch", error: err });
+      return res.status(500).json({ message: "Lỗi khi xóa lịch", error: err.message });
     }
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: "Lịch không tồn tại" });
     }
-    res.json({ message: "Xóa lịch thành công" });
-  });
-});
-
-// === NEW ENDPOINTS FOR EXTENDED SCHEMA ===
-
-// GET schedules by date range (startDate, endDate)
-router.get("/date-range/:startDate/:endDate", (req, res) => {
-  const { startDate, endDate } = req.params;
-  const { technicianId } = req.query;
-
-  console.log(`[schedules] GET date-range ${startDate} to ${endDate}, technicianId=${technicianId}`);
-
-  let sql = `
-    SELECT s.*, t.code as ticket_code, t.equipment, t.status as ticket_status
-    FROM schedules s
-    LEFT JOIN tickets t ON s.ticket_id = t.id
-    WHERE (s.startDate BETWEEN ? AND ? OR s.endDate BETWEEN ? AND ? OR (s.startDate <= ? AND s.endDate >= ?))
-  `;
-
-  const params = [startDate, endDate, startDate, endDate, startDate, endDate];
-
-  if (technicianId) {
-    sql += " AND s.technician_id = ?";
-    params.push(technicianId);
-  }
-
-  sql += " ORDER BY s.startDate, s.endDate";
-
-  db.query(sql, params, (err, results) => {
-    if (err) {
-      console.error("[schedules] GET date-range error:", err);
-      return res.status(500).json({ message: "Lỗi khi tải lịch", error: err });
-    }
-    res.json(results || []);
-  });
-});
-
-// CREATE schedule with new schema
-router.post("/new", (req, res) => {
-  const { ticket_id, technician_id, startDate, endDate, note } = req.body;
-
-  console.log("[schedules] POST /new", { ticket_id, technician_id, startDate, endDate, note });
-
-  if (!ticket_id || !technician_id || !startDate || !endDate) {
-    return res
-      .status(400)
-      .json({ message: "ticket_id, technician_id, startDate, endDate bắt buộc" });
-  }
-
-  // Validate ticket exists
-  const validateSql = "SELECT id FROM tickets WHERE id = ?";
-  db.query(validateSql, [ticket_id], (err, ticketResult) => {
-    if (err) {
-      console.error("[schedules] Validate error:", err);
-      return res.status(500).json({ message: "Lỗi server", error: err });
-    }
-
-    if (!ticketResult || ticketResult.length === 0) {
-      return res.status(404).json({ message: "Phiếu không tồn tại" });
-    }
-
-    const sql =
-      "INSERT INTO schedules (ticket_id, technician_id, startDate, endDate, note) VALUES (?, ?, ?, ?, ?)";
-
-    db.query(sql, [ticket_id, technician_id, startDate, endDate, note || ""], (err, result) => {
-      if (err) {
-        console.error("[schedules] POST /new error:", err);
-        return res.status(500).json({ message: "Lỗi khi tạo lịch", error: err });
-      }
-
-      res.json({
-        message: "✅ Tạo lịch thành công",
-        id: result.insertId,
-        ticket_id,
-        technician_id,
-        startDate,
-        endDate,
-        note,
-      });
-    });
-  });
-});
-
-// UPDATE schedule with new schema
-router.put("/update/:id", (req, res) => {
-  const { id } = req.params;
-  const { ticket_id, technician_id, startDate, endDate, note } = req.body;
-
-  console.log("[schedules] PUT /update/:id", id, { ticket_id, technician_id, startDate, endDate, note });
-
-  let sql = "UPDATE schedules SET ";
-  const params = [];
-  const updates = [];
-
-  if (ticket_id !== undefined) {
-    updates.push("ticket_id = ?");
-    params.push(ticket_id);
-  }
-  if (technician_id !== undefined) {
-    updates.push("technician_id = ?");
-    params.push(technician_id);
-  }
-  if (startDate !== undefined) {
-    updates.push("startDate = ?");
-    params.push(startDate);
-  }
-  if (endDate !== undefined) {
-    updates.push("endDate = ?");
-    params.push(endDate);
-  }
-  if (note !== undefined) {
-    updates.push("note = ?");
-    params.push(note);
-  }
-
-  if (updates.length === 0) {
-    return res.status(400).json({ message: "Không có dữ liệu cần cập nhật" });
-  }
-
-  sql += updates.join(", ") + " WHERE id = ?";
-  params.push(id);
-
-  db.query(sql, params, (err, result) => {
-    if (err) {
-      console.error("[schedules] PUT /update error:", err);
-      return res.status(500).json({ message: "Lỗi khi cập nhật lịch", error: err });
-    }
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: "Lịch không tồn tại" });
-    }
-
-    res.json({ message: "✅ Cập nhật lịch thành công" });
+    res.json({ message: "✅ Xóa lịch thành công" });
   });
 });
 
