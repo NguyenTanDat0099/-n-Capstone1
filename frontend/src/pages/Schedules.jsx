@@ -12,6 +12,7 @@ export default function Schedules() {
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [userId, setUserId] = useState(localStorage.getItem("user_id"));
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   
   const [formData, setFormData] = useState({
     ticketId: "",
@@ -72,11 +73,13 @@ export default function Schedules() {
     }
 
     try {
+      setSaving(true);
       const ticketIdNum = parseInt(formData.ticketId, 10);
       const technicianIdNum = userId ? parseInt(userId, 10) : (formData.technicianId ? parseInt(formData.technicianId, 10) : null);
       
       if (isNaN(ticketIdNum)) {
         alert("❌ Phiếu không hợp lệ");
+        setSaving(false);
         return;
       }
       
@@ -106,6 +109,8 @@ export default function Schedules() {
     } catch (err) {
       console.error("Lỗi lưu lịch:", err.response?.data || err.message);
       alert("❌ " + (err.response?.data?.message || err.message || "Lỗi khi lưu lịch"));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -394,21 +399,24 @@ export default function Schedules() {
             <div className="flex gap-3 mt-8">
               <button
                 onClick={handleSaveSchedule}
-                className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:shadow-lg font-bold transition-all"
+                disabled={saving}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:shadow-lg font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                💾 Lưu Lịch
+                {saving ? "⏳ Đang lưu..." : "💾 Lưu Lịch"}
               </button>
               {editingSchedule && (
                 <button
                   onClick={() => handleDeleteSchedule(editingSchedule.id)}
-                  className="px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 font-bold transition-all"
+                  disabled={saving}
+                  className="px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   🗑️ Xóa
                 </button>
               )}
               <button
                 onClick={resetForm}
-                className="flex-1 px-4 py-3 bg-gray-400 text-white rounded-lg hover:bg-gray-500 font-bold transition-all"
+                disabled={saving}
+                className="flex-1 px-4 py-3 bg-gray-400 text-white rounded-lg hover:bg-gray-500 font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 ❌ Hủy
               </button>
