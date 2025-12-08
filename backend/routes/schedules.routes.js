@@ -95,10 +95,10 @@ router.get("/:id", (req, res) => {
   });
 });
 
-// CREATE new schedule
+// CREATE new schedule (single day)
 router.post("/", (req, res) => {
   const { ticket_id, technician_id, date, shift, status } = req.body;
-  console.log("[schedules] POST", { ticket_id, date, shift });
+  console.log("[schedules] POST /", { ticket_id, date, shift });
 
   // Validate required fields
   if (!ticket_id || !date) {
@@ -141,11 +141,62 @@ router.post("/", (req, res) => {
   });
 });
 
-// UPDATE schedule
+// CREATE new schedule with date range (startDate/endDate)
+router.post("/new", (req, res) => {
+  const { ticket_id, technician_id, startDate, endDate, note } = req.body;
+  console.log("[schedules] POST /new", { ticket_id, startDate, endDate, technician_id });
+
+  // Validate required fields
+  if (!ticket_id || !startDate || !endDate) {
+    console.warn("[schedules] Missing required fields:", { ticket_id, startDate, endDate });
+    return res.status(400).json({ message: "ticket_id, startDate, endDate là bắt buộc" });
+  }
+
+  // Validate ticket exists
+  db.query("SELECT id FROM tickets WHERE id = ?", [ticket_id], (checkErr, checkResults) => {
+    if (checkErr) {
+      console.error("[schedules] POST /new ticket check error:", checkErr);
+      return res.status(500).json({ message: "Lỗi khi kiểm tra phiếu", error: checkErr.message });
+    }
+    
+    console.log("[schedules] Ticket check result:", { ticket_id, found: checkResults?.length > 0, count: checkResults?.length });
+    
+    if (!checkResults || checkResults.length === 0) {
+      console.warn("[schedules] Ticket not found:", ticket_id);
+      return res.status(404).json({ message: `Phiếu ID ${ticket_id} không tồn tại` });
+    }
+
+    const sql = `
+      INSERT INTO schedules (ticket_id, technician_id, startDate, endDate, note)
+      VALUES (?, ?, ?, ?, ?)
+    `;
+    const values = [
+      ticket_id,
+      technician_id || null,
+      startDate,
+      endDate,
+      note || "",
+    ];
+
+    db.query(sql, values, (err, result) => {
+      if (err) {
+        console.error("[schedules] POST /new insert error:", err);
+        return res.status(500).json({ message: "Lỗi khi tạo lịch", error: err.message });
+      }
+      console.log("[schedules] Schedule created:", { id: result.insertId });
+      res.status(201).json({
+        message: "✅ Tạo lịch thành công",
+        id: result.insertId,
+      });
+    });
+  });
+});
+
+// UPDATE schedule (any format)
 router.put("/:id", (req, res) => {
   const id = req.params.id;
-  const { ticket_id, technician_id, date, shift, status } = req.body;
-  console.log("[schedules] PUT /:id", id, { date, shift, status });
+  const { ticket_id, technician_id, date, shift, status, startDate, endDate, note } = req.body;
+  console.log("[schedules] PUT /:id", id, req.body);
 
   // If ticket_id changes, validate new ticket exists
   if (ticket_id) {
@@ -175,6 +226,14 @@ router.put("/:id", (req, res) => {
       fields.push("date = ?");
       values.push(date);
     }
+    if (startDate !== undefined) {
+      fields.push("startDate = ?");
+      values.push(startDate);
+    }
+    if (endDate !== undefined) {
+      fields.push("endDate = ?");
+      values.push(endDate);
+    }
     if (shift !== undefined) {
       fields.push("shift = ?");
       values.push(shift);
@@ -182,6 +241,10 @@ router.put("/:id", (req, res) => {
     if (status !== undefined) {
       fields.push("status = ?");
       values.push(status);
+    }
+    if (note !== undefined) {
+      fields.push("note = ?");
+      values.push(note);
     }
 
     if (fields.length === 0) {
@@ -202,6 +265,66 @@ router.put("/:id", (req, res) => {
       res.json({ message: "Cập nhật lịch thành công" });
     });
   }
+});
+
+// UPDATE schedule (PUT /update/:id - alternative endpoint)
+router.put("/update/:id", (req, res) => {
+  const id = req.params.id;
+  const { ticket_id, technician_id, startDate, endDate, note } = req.body;
+  console.log("[schedules] PUT /update/:id", id, req.body);
+
+  if (!ticket_id) {
+    return res.status(400).json({ message: "ticket_id là bắt buộc" });
+  }
+
+  // Validate ticket exists
+  db.query("SELECT id FROM tickets WHERE id = ?", [ticket_id], (checkErr, checkResults) => {
+    if (checkErr || !checkResults || checkResults.length === 0) {
+      return res.status(404).json({ message: "Phiếu không tồn tại" });
+    }
+
+    const fields = [];
+    const values = [];
+
+    if (ticket_id !== undefined) {
+      fields.push("ticket_id = ?");
+      values.push(ticket_id);
+    }
+    if (technician_id !== undefined) {
+      fields.push("technician_id = ?");
+      values.push(technician_id);
+    }
+    if (startDate !== undefined) {
+      fields.push("startDate = ?");
+      values.push(startDate);
+    }
+    if (endDate !== undefined) {
+      fields.push("endDate = ?");
+      values.push(endDate);
+    }
+    if (note !== undefined) {
+      fields.push("note = ?");
+      values.push(note);
+    }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ message: "Không có trường nào để cập nhật" });
+    }
+
+    values.push(id);
+    const sql = `UPDATE schedules SET ${fields.join(", ")} WHERE id = ?`;
+
+    db.query(sql, values, (err, result) => {
+      if (err) {
+        console.error("[schedules] PUT /update/:id error:", err);
+        return res.status(500).json({ message: "Lỗi khi cập nhật lịch", error: err });
+      }
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ message: "Lịch không tồn tại" });
+      }
+      res.json({ message: "✅ Cập nhật lịch thành công" });
+    });
+  });
 });
 
 // DELETE schedule

@@ -72,9 +72,17 @@ export default function Schedules() {
     }
 
     try {
+      const ticketIdNum = parseInt(formData.ticketId, 10);
+      const technicianIdNum = userId ? parseInt(userId, 10) : (formData.technicianId ? parseInt(formData.technicianId, 10) : null);
+      
+      if (isNaN(ticketIdNum)) {
+        alert("❌ Phiếu không hợp lệ");
+        return;
+      }
+      
       const dataToSave = {
-        ticket_id: parseInt(formData.ticketId),
-        technician_id: parseInt(userId || formData.technicianId),
+        ticket_id: ticketIdNum,
+        technician_id: technicianIdNum,
         startDate: formData.startDate,
         endDate: formData.endDate,
         note: formData.note || "",
@@ -82,10 +90,12 @@ export default function Schedules() {
 
       if (editingSchedule) {
         // Update existing schedule
+        console.log("[Schedules] Updating schedule:", editingSchedule.id, dataToSave);
         await axios.put(`/api/schedules/update/${editingSchedule.id}`, dataToSave);
         alert("✅ Cập nhật lịch thành công");
       } else {
         // Create new schedule
+        console.log("[Schedules] Creating new schedule:", dataToSave);
         await axios.post("/api/schedules/new", dataToSave);
         alert("✅ Tạo lịch thành công");
       }
@@ -94,8 +104,8 @@ export default function Schedules() {
       resetForm();
       await fetchSchedules();
     } catch (err) {
-      console.error("Lỗi lưu lịch:", err);
-      alert("❌ " + (err.response?.data?.message || "Lỗi khi lưu lịch"));
+      console.error("Lỗi lưu lịch:", err.response?.data || err.message);
+      alert("❌ " + (err.response?.data?.message || err.message || "Lỗi khi lưu lịch"));
     }
   };
 
