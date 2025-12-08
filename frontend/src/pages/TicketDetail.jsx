@@ -4,6 +4,27 @@ import axios from "axios";
 import jsPDF from "jspdf";
 import { io } from "socket.io-client";
 
+const translateStatus = (status) => {
+  const translations = {
+    "Pending": "Chờ xử lý",
+    "In Progress": "Đang thực hiện",
+    "Completed": "Hoàn thành",
+    "Cancelled": "Hủy bỏ",
+    "Scheduled": "Đã lên lịch",
+  };
+  return translations[status] || status;
+};
+
+const translatePriority = (priority) => {
+  const translations = {
+    "Critical": "Khẩn cấp",
+    "High": "Cao",
+    "Medium": "Trung bình",
+    "Low": "Thấp",
+  };
+  return translations[priority] || priority;
+};
+
 export default function TicketDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -164,8 +185,8 @@ export default function TicketDetail() {
     };
 
     addLine("Thiết bị", ticket.equipment);
-    addLine("Ưu tiên", ticket.priority);
-    addLine("Trạng thái", ticket.status);
+    addLine("Ưu tiên", translatePriority(ticket.priority));
+    addLine("Trạng thái", translateStatus(ticket.status));
     addLine("Ngày hạn", ticket.due_date);
     addLine("Vị trí", ticket.location);
     addLine("Kỹ thuật viên", ticket.assigned_to);
@@ -192,7 +213,7 @@ export default function TicketDetail() {
       doc.setFontSize(10);
       logs.forEach((log) => {
         const timeStr = log.created_at ? new Date(log.created_at).toLocaleString() : "";
-        const statusStr = log.status ? `Status: ${log.status}` : "";
+        const statusStr = log.status ? `Trạng thái: ${translateStatus(log.status)}` : "";
         const header = `${timeStr} ${statusStr}`.trim();
         doc.text(header, 10, y);
         y += lineHeight;
@@ -275,11 +296,23 @@ export default function TicketDetail() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm text-gray-600">Ưu tiên</label>
-                <input className="w-full p-2 border rounded" value={ticket.priority || ""} onChange={e => setTicket({...ticket, priority: e.target.value})} />
+                <select className="w-full p-2 border rounded text-sm" value={ticket.priority || ""} onChange={e => setTicket({...ticket, priority: e.target.value})}>
+                  <option value="">-- Chọn --</option>
+                  <option value="Critical">Khẩn cấp</option>
+                  <option value="High">Cao</option>
+                  <option value="Medium">Trung bình</option>
+                  <option value="Low">Thấp</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm text-gray-600">Trạng thái</label>
-                <input className="w-full p-2 border rounded" value={ticket.status || ""} onChange={e => setTicket({...ticket, status: e.target.value})} />
+                <select className="w-full p-2 border rounded text-sm" value={ticket.status || ""} onChange={e => setTicket({...ticket, status: e.target.value})}>
+                  <option value="">-- Chọn --</option>
+                  <option value="Pending">Chờ xử lý</option>
+                  <option value="In Progress">Đang thực hiện</option>
+                  <option value="Completed">Hoàn thành</option>
+                  <option value="Cancelled">Hủy bỏ</option>
+                </select>
               </div>
             </div>
 
@@ -340,7 +373,7 @@ export default function TicketDetail() {
                     </div>
                     {log.status && (
                       <div>
-                        <span className="font-semibold">Trạng thái:</span> {log.status}
+                        <span className="font-semibold">Trạng thái:</span> {translateStatus(log.status)}
                       </div>
                     )}
                     {log.notes && (
@@ -410,7 +443,7 @@ export default function TicketDetail() {
                         {sch.startDate} → {sch.endDate}
                       </span>
                       <span className="text-[10px] bg-blue-200 text-blue-800 px-2 py-0.5 rounded">
-                        {sch.status || "Scheduled"}
+                        {translateStatus(sch.status || "Scheduled")}
                       </span>
                     </div>
                     {sch.note && (

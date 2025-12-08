@@ -133,12 +133,24 @@ export default function Schedules() {
   const translateStatus = (status) => {
     const translations = {
       "Pending": "Chờ xử lý",
-      "In Progress": "Đang xử lý",
+      "In Progress": "Đang thực hiện",
       "Completed": "Hoàn thành",
       "Cancelled": "Hủy bỏ",
       "Scheduled": "Đã lên lịch",
+      "On Hold": "Tạm dừng",
     };
     return translations[status] || status;
+  };
+
+  // Translate priority to Vietnamese
+  const translatePriority = (priority) => {
+    const translations = {
+      "Critical": "Khẩn cấp",
+      "High": "Cao",
+      "Medium": "Trung bình",
+      "Low": "Thấp",
+    };
+    return translations[priority] || priority;
   };
 
   // Reset form
@@ -469,7 +481,7 @@ export default function Schedules() {
                         </div>
                         <div>
                           <p className="text-xs font-semibold opacity-75">Ưu Tiên</p>
-                          <p className="text-sm">{ticket?.priority || "N/A"}</p>
+                          <p className="text-sm">{translatePriority(ticket?.priority) || "N/A"}</p>
                         </div>
                       </div>
 

@@ -157,6 +157,54 @@ export default function Dashboard() {
     return iso < today;
   };
 
+  // Helper: translate status to Vietnamese
+  const translateStatus = (status) => {
+    const map = {
+      "Pending": "Chờ xử lý",
+      "In Progress": "Đang thực hiện",
+      "Completed": "Hoàn thành",
+      "On Hold": "Tạm dừng",
+      "Cancelled": "Đã hủy",
+    };
+    return map[status] || status;
+  };
+
+  // Helper: translate priority to Vietnamese
+  const translatePriority = (priority) => {
+    const map = {
+      "Critical": "Khẩn cấp",
+      "High": "Cao",
+      "Medium": "Trung bình",
+      "Low": "Thấp",
+    };
+    return map[priority] || priority;
+  };
+
+  // Helper: get status color
+  const getStatusColor = (status) => {
+    switch(status) {
+      case "In Progress": return "bg-yellow-100 text-yellow-800";
+      case "Completed": return "bg-green-100 text-green-800";
+      case "Pending": return "bg-gray-100 text-gray-800";
+      case "Cancelled": return "bg-red-100 text-red-800";
+      default: return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  // Helper: get priority color
+  const getPriorityColor = (priority) => {
+    switch(priority) {
+      case "Critical": return "bg-red-100 text-red-800";
+      case "High": return "bg-orange-100 text-orange-800";
+      case "Medium": return "bg-blue-100 text-blue-800";
+      case "Low": return "bg-green-100 text-green-800";
+      default: return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  // state for updating tickets inline
+  const [updating, setUpdating] = useState(null);
+
   // status statistics
   const statusStats = useMemo(() => {
     const pending = tickets.filter(t => t.status === "Pending").length;
@@ -164,6 +212,36 @@ export default function Dashboard() {
     const completed = tickets.filter(t => t.status === "Completed").length;
     return { pending, inProgress, completed };
   }, [tickets]);
+
+  // Handle inline status update
+  const handleStatusChange = async (ticketId, newStatus) => {
+    setUpdating(ticketId);
+    try {
+      await axios.put(`http://localhost:5000/api/tickets/${ticketId}`, { status: newStatus });
+      // Update local state
+      setTickets(tickets.map(t => t.id === ticketId ? {...t, status: newStatus} : t));
+    } catch (err) {
+      console.error("Error updating status:", err);
+      alert("❌ Lỗi cập nhật trạng thái: " + (err.response?.data?.message || err.message));
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  // Handle inline priority update
+  const handlePriorityChange = async (ticketId, newPriority) => {
+    setUpdating(ticketId);
+    try {
+      await axios.put(`http://localhost:5000/api/tickets/${ticketId}`, { priority: newPriority });
+      // Update local state
+      setTickets(tickets.map(t => t.id === ticketId ? {...t, priority: newPriority} : t));
+    } catch (err) {
+      console.error("Error updating priority:", err);
+      alert("❌ Lỗi cập nhật ưu tiên: " + (err.response?.data?.message || err.message));
+    } finally {
+      setUpdating(null);
+    }
+  };
 
   // filtered tickets for list view (search + filters)
   const filteredTickets = useMemo(() => {
@@ -482,8 +560,8 @@ export default function Dashboard() {
                   <div className="grid grid-cols-2 gap-3">
                     <input className="p-2 border rounded" placeholder="Mã phiếu" value={newTicket.code} onChange={e => setNewTicket({...newTicket, code: e.target.value})} />
                     <input className="p-2 border rounded" placeholder="Thiết bị" value={newTicket.equipment} onChange={e => setNewTicket({...newTicket, equipment: e.target.value})} />
-                    <select className="p-2 border rounded" value={newTicket.priority} onChange={e => setNewTicket({...newTicket, priority: e.target.value})}><option>High</option><option>Medium</option><option>Low</option></select>
-                    <select className="p-2 border rounded" value={newTicket.status} onChange={e => setNewTicket({...newTicket, status: e.target.value})}><option>Pending</option><option>In Progress</option><option>Completed</option></select>
+                    <select className="p-2 border rounded" value={newTicket.priority} onChange={e => setNewTicket({...newTicket, priority: e.target.value})}><option value="High">Cao</option><option value="Medium">Trung bình</option><option value="Low">Thấp</option><option value="Critical">Khẩn cấp</option></select>
+                    <select className="p-2 border rounded" value={newTicket.status} onChange={e => setNewTicket({...newTicket, status: e.target.value})}><option value="Pending">Chờ xử lý</option><option value="In Progress">Đang xử lý</option><option value="Completed">Hoàn thành</option><option value="On Hold">Tạm dừng</option><option value="Cancelled">Đã hủy</option></select>
                     <input type="date" className="p-2 border rounded" value={newTicket.due_date} onChange={e => setNewTicket({...newTicket, due_date: e.target.value})} />
                     <input className="p-2 border rounded" placeholder="Vị trí" value={newTicket.location} onChange={e => setNewTicket({...newTicket, location: e.target.value})} />
                     {/* NEW: assign technician + description */}
@@ -500,21 +578,21 @@ export default function Dashboard() {
               <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
                 <div className="flex items-center justify-between rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2">
                   <div>
-                    <div className="text-xs uppercase text-yellow-700 font-semibold">Pending</div>
+                    <div className="text-xs uppercase text-yellow-700 font-semibold">PENDING</div>
                     <div className="text-lg font-bold text-yellow-900">{statusStats.pending}</div>
                   </div>
                   <span className="text-xl">⏳</span>
                 </div>
                 <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
                   <div>
-                    <div className="text-xs uppercase text-blue-700 font-semibold">In Progress</div>
+                    <div className="text-xs uppercase text-blue-700 font-semibold">IN PROGRESS</div>
                     <div className="text-lg font-bold text-blue-900">{statusStats.inProgress}</div>
                   </div>
                   <span className="text-xl">🔧</span>
                 </div>
                 <div className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 px-3 py-2">
                   <div>
-                    <div className="text-xs uppercase text-green-700 font-semibold">Completed</div>
+                    <div className="text-xs uppercase text-green-700 font-semibold">COMPLETED</div>
                     <div className="text-lg font-bold text-green-900">{statusStats.completed}</div>
                   </div>
                   <span className="text-xl">✅</span>
@@ -536,7 +614,7 @@ export default function Dashboard() {
                 >
                   <option value="all">Tất cả trạng thái</option>
                   <option value="Pending">Chờ xử lý</option>
-                  <option value="In Progress">Đang xử lý</option>
+                  <option value="In Progress">Đang thực hiện</option>
                   <option value="Completed">Hoàn thành</option>
                 </select>
                 <select
@@ -585,13 +663,37 @@ export default function Dashboard() {
                       >
                         <td className="p-2">{t.code || t.id}</td>
                         <td className="p-2">{t.equipment}</td>
-                        <td className="p-2">{t.priority}</td>
+                        <td className="p-2">
+                          <select 
+                            className={`text-xs font-medium px-2 py-1 rounded border-0 cursor-pointer ${getPriorityColor(t.priority)}`}
+                            value={t.priority} 
+                            onChange={(e) => handlePriorityChange(t.id, e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            disabled={updating === t.id}
+                          >
+                            <option value="Critical">Khẩn cấp</option>
+                            <option value="High">Cao</option>
+                            <option value="Medium">Trung bình</option>
+                            <option value="Low">Thấp</option>
+                          </select>
+                        </td>
                         <td className="p-2">
                           <div className="flex items-center gap-2">
-                            <span>{t.status}</span>
+                            <select 
+                              className={`text-xs font-medium px-2 py-1 rounded border-0 cursor-pointer ${getStatusColor(t.status)}`}
+                              value={t.status} 
+                              onChange={(e) => handleStatusChange(t.id, e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              disabled={updating === t.id}
+                            >
+                              <option value="Pending">Chờ xử lý</option>
+                              <option value="In Progress">Đang thực hiện</option>
+                              <option value="Completed">Hoàn thành</option>
+                              <option value="Cancelled">Hủy bỏ</option>
+                            </select>
                             {overdue && (
                               <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
-                                Overdue
+                                Quá hạn
                               </span>
                             )}
                           </div>
