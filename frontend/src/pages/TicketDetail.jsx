@@ -305,23 +305,29 @@ export default function TicketDetail() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm text-gray-600">Ưu tiên</label>
-                <select className="w-full p-2 border rounded text-sm" value={ticket.priority || ""} onChange={e => setTicket({...ticket, priority: e.target.value})}>
-                  <option value="">-- Chọn --</option>
-                  <option value="Critical">Khẩn cấp</option>
-                  <option value="High">Cao</option>
-                  <option value="Medium">Trung bình</option>
-                  <option value="Low">Thấp</option>
-                </select>
+                <div className="flex items-center gap-2">
+                  <input type="text" className="flex-1 p-2 border rounded text-sm bg-gray-50" value={translatePriority(ticket.priority || "")} readOnly />
+                  <select className="w-12 p-2 border rounded text-sm" value={ticket.priority || ""} onChange={e => setTicket({...ticket, priority: e.target.value})}>
+                    <option value="">--</option>
+                    <option value="Critical">Khẩn cấp</option>
+                    <option value="High">Cao</option>
+                    <option value="Medium">Trung bình</option>
+                    <option value="Low">Thấp</option>
+                  </select>
+                </div>
               </div>
               <div>
                 <label className="block text-sm text-gray-600">Trạng thái</label>
-                <select className="w-full p-2 border rounded text-sm" value={ticket.status || ""} onChange={e => setTicket({...ticket, status: e.target.value})}>
-                  <option value="">-- Chọn --</option>
-                  <option value="Pending">Chờ xử lý</option>
-                  <option value="In Progress">Đang thực hiện</option>
-                  <option value="Completed">Hoàn thành</option>
-                  <option value="Cancelled">Hủy bỏ</option>
-                </select>
+                <div className="flex items-center gap-2">
+                  <input type="text" className="flex-1 p-2 border rounded text-sm bg-gray-50" value={translateStatus(ticket.status || "")} readOnly />
+                  <select className="w-12 p-2 border rounded text-sm" value={ticket.status || ""} onChange={e => setTicket({...ticket, status: e.target.value})}>
+                    <option value="">--</option>
+                    <option value="Pending">Chờ xử lý</option>
+                    <option value="In Progress">Đang thực hiện</option>
+                    <option value="Completed">Hoàn thành</option>
+                    <option value="Cancelled">Hủy bỏ</option>
+                  </select>
+                </div>
               </div>
             </div>
 
