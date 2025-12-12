@@ -127,6 +127,15 @@ export default function TicketDetail() {
     };
   }, [id]);
 
+  // Helper: convert date to YYYY-MM-DD format for input type="date"
+  const toDateInputFormat = (d) => {
+    if (!d) return "";
+    if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+    const date = new Date(d);
+    if (isNaN(date)) return "";
+    return date.toISOString().slice(0, 10);
+  };
+
   const handleUpdate = async () => {
     if (!ticket) return;
     try {
@@ -335,7 +344,7 @@ export default function TicketDetail() {
 
             <div>
               <label className="block text-sm text-gray-600">Ngày hạn</label>
-              <input type="date" className="p-2 border rounded" value={ticket.due_date || ""} onChange={e => setTicket({...ticket, due_date: e.target.value})} />
+              <input type="date" className="p-2 border rounded" value={toDateInputFormat(ticket.due_date)} onChange={e => setTicket({...ticket, due_date: e.target.value})} />
             </div>
 
             <div>
