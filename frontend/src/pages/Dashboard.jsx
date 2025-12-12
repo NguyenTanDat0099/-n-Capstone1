@@ -146,6 +146,16 @@ export default function Dashboard() {
     return buildMonthDays(calendarMonth);
   }, [calendarView, calendarMonth, selectedDate]);
 
+  // helper: convert date to YYYY-MM-DD (ISO format for input type="date")
+  const toDateInputFormat = (d) => {
+    if (!d) return "";
+    // If already in ISO format (YYYY-MM-DD), return as-is
+    if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+    const date = new Date(d);
+    if (isNaN(date)) return "";
+    return date.toISOString().slice(0, 10);
+  };
+
   // tasks per day
   const tasksForSelectedDate = tickets.filter(t => toISODate(t.due_date || t.dueDate || t.due) === selectedDate);
 
@@ -844,7 +854,7 @@ export default function Dashboard() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
-                      <input type="date" className="p-2 border rounded" value={selectedTicket.due_date || ""} onChange={e => setSelectedTicket({...selectedTicket, due_date: e.target.value})} />
+                      <input type="date" className="p-2 border rounded" value={toDateInputFormat(selectedTicket.due_date)} onChange={e => setSelectedTicket({...selectedTicket, due_date: e.target.value})} />
                       <input className="p-2 border rounded" value={selectedTicket.location || ""} onChange={e => setSelectedTicket({...selectedTicket, location: e.target.value})} placeholder="Vị trí" />
                     </div>
 
