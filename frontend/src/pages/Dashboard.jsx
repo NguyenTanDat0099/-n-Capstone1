@@ -202,29 +202,6 @@ export default function Dashboard() {
     }
   };
 
-  // Convert Vietnamese to English (for backend)
-  const statusViToEn = (viStatus) => {
-    const map = {
-      "Chờ xử lý": "Pending",
-      "Đang thực hiện": "In Progress",
-      "Hoàn thành": "Completed",
-      "Tạm dừng": "On Hold",
-      "Đã hủy": "Cancelled",
-      "Hủy bỏ": "Cancelled",
-    };
-    return map[viStatus] || viStatus;
-  };
-
-  const priorityViToEn = (viPriority) => {
-    const map = {
-      "Khẩn cấp": "Critical",
-      "Cao": "High",
-      "Trung bình": "Medium",
-      "Thấp": "Low",
-    };
-    return map[viPriority] || viPriority;
-  };
-
   // state for updating tickets inline
   const [updating, setUpdating] = useState(null);
 
@@ -240,10 +217,10 @@ export default function Dashboard() {
   const handleStatusChange = async (ticketId, newStatus) => {
     setUpdating(ticketId);
     try {
-      const enStatus = statusViToEn(newStatus);
-      await axios.put(`http://localhost:5000/api/tickets/${ticketId}`, { status: enStatus });
+      // newStatus từ dropdown đã là tiếng Anh (value attribute)
+      await axios.put(`http://localhost:5000/api/tickets/${ticketId}`, { status: newStatus });
       // Update local state
-      setTickets(tickets.map(t => t.id === ticketId ? {...t, status: enStatus} : t));
+      setTickets(tickets.map(t => t.id === ticketId ? {...t, status: newStatus} : t));
     } catch (err) {
       console.error("Error updating status:", err);
       alert("❌ Lỗi cập nhật trạng thái: " + (err.response?.data?.message || err.message));
@@ -256,10 +233,10 @@ export default function Dashboard() {
   const handlePriorityChange = async (ticketId, newPriority) => {
     setUpdating(ticketId);
     try {
-      const enPriority = priorityViToEn(newPriority);
-      await axios.put(`http://localhost:5000/api/tickets/${ticketId}`, { priority: enPriority });
+      // newPriority từ dropdown đã là tiếng Anh (value attribute)
+      await axios.put(`http://localhost:5000/api/tickets/${ticketId}`, { priority: newPriority });
       // Update local state
-      setTickets(tickets.map(t => t.id === ticketId ? {...t, priority: enPriority} : t));
+      setTickets(tickets.map(t => t.id === ticketId ? {...t, priority: newPriority} : t));
     } catch (err) {
       console.error("Error updating priority:", err);
       alert("❌ Lỗi cập nhật ưu tiên: " + (err.response?.data?.message || err.message));
@@ -349,10 +326,9 @@ export default function Dashboard() {
   const handleUpdateTicket = async () => {
     if (!selectedTicket || !selectedTicket.id) return alert("Chưa chọn phiếu");
     const ticketId = selectedTicket.id;
+    // selectedTicket.status & priority từ database đã là tiếng Anh, không cần convert
     const payload = {
       ...selectedTicket,
-      status: statusViToEn(selectedTicket.status),
-      priority: priorityViToEn(selectedTicket.priority),
       notes
     };
     try {
