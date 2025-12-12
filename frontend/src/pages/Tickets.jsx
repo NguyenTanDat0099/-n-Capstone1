@@ -43,6 +43,29 @@ const getPriorityColor = (priority) => {
   }
 };
 
+// Convert Vietnamese to English (for backend)
+const statusViToEn = (viStatus) => {
+  const map = {
+    "Chờ xử lý": "Pending",
+    "Đang thực hiện": "In Progress",
+    "Hoàn thành": "Completed",
+    "Tạm dừng": "On Hold",
+    "Đã hủy": "Cancelled",
+    "Hủy bỏ": "Cancelled",
+  };
+  return map[viStatus] || viStatus;
+};
+
+const priorityViToEn = (viPriority) => {
+  const map = {
+    "Khẩn cấp": "Critical",
+    "Cao": "High",
+    "Trung bình": "Medium",
+    "Thấp": "Low",
+  };
+  return map[viPriority] || viPriority;
+};
+
 export default function Tickets() {
   const [tickets, setTickets] = useState([]);
   const [showNewForm, setShowNewForm] = useState(false);
@@ -87,9 +110,10 @@ export default function Tickets() {
   const handleStatusChange = async (ticketId, newStatus) => {
     setUpdating(ticketId);
     try {
-      await axios.put(`http://localhost:5000/api/tickets/${ticketId}`, { status: newStatus });
+      const enStatus = statusViToEn(newStatus);
+      await axios.put(`http://localhost:5000/api/tickets/${ticketId}`, { status: enStatus });
       // Update local state
-      setTickets(tickets.map(t => t.id === ticketId ? {...t, status: newStatus} : t));
+      setTickets(tickets.map(t => t.id === ticketId ? {...t, status: enStatus} : t));
     } catch (err) {
       console.error("Error updating status:", err);
       alert("❌ Lỗi cập nhật trạng thái: " + (err.response?.data?.message || err.message));
@@ -101,9 +125,10 @@ export default function Tickets() {
   const handlePriorityChange = async (ticketId, newPriority) => {
     setUpdating(ticketId);
     try {
-      await axios.put(`http://localhost:5000/api/tickets/${ticketId}`, { priority: newPriority });
+      const enPriority = priorityViToEn(newPriority);
+      await axios.put(`http://localhost:5000/api/tickets/${ticketId}`, { priority: enPriority });
       // Update local state
-      setTickets(tickets.map(t => t.id === ticketId ? {...t, priority: newPriority} : t));
+      setTickets(tickets.map(t => t.id === ticketId ? {...t, priority: enPriority} : t));
     } catch (err) {
       console.error("Error updating priority:", err);
       alert("❌ Lỗi cập nhật ưu tiên: " + (err.response?.data?.message || err.message));

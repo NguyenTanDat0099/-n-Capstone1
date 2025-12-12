@@ -202,6 +202,29 @@ export default function Dashboard() {
     }
   };
 
+  // Convert Vietnamese to English (for backend)
+  const statusViToEn = (viStatus) => {
+    const map = {
+      "Chờ xử lý": "Pending",
+      "Đang thực hiện": "In Progress",
+      "Hoàn thành": "Completed",
+      "Tạm dừng": "On Hold",
+      "Đã hủy": "Cancelled",
+      "Hủy bỏ": "Cancelled",
+    };
+    return map[viStatus] || viStatus;
+  };
+
+  const priorityViToEn = (viPriority) => {
+    const map = {
+      "Khẩn cấp": "Critical",
+      "Cao": "High",
+      "Trung bình": "Medium",
+      "Thấp": "Low",
+    };
+    return map[viPriority] || viPriority;
+  };
+
   // state for updating tickets inline
   const [updating, setUpdating] = useState(null);
 
@@ -217,9 +240,10 @@ export default function Dashboard() {
   const handleStatusChange = async (ticketId, newStatus) => {
     setUpdating(ticketId);
     try {
-      await axios.put(`http://localhost:5000/api/tickets/${ticketId}`, { status: newStatus });
+      const enStatus = statusViToEn(newStatus);
+      await axios.put(`http://localhost:5000/api/tickets/${ticketId}`, { status: enStatus });
       // Update local state
-      setTickets(tickets.map(t => t.id === ticketId ? {...t, status: newStatus} : t));
+      setTickets(tickets.map(t => t.id === ticketId ? {...t, status: enStatus} : t));
     } catch (err) {
       console.error("Error updating status:", err);
       alert("❌ Lỗi cập nhật trạng thái: " + (err.response?.data?.message || err.message));
@@ -232,9 +256,10 @@ export default function Dashboard() {
   const handlePriorityChange = async (ticketId, newPriority) => {
     setUpdating(ticketId);
     try {
-      await axios.put(`http://localhost:5000/api/tickets/${ticketId}`, { priority: newPriority });
+      const enPriority = priorityViToEn(newPriority);
+      await axios.put(`http://localhost:5000/api/tickets/${ticketId}`, { priority: enPriority });
       // Update local state
-      setTickets(tickets.map(t => t.id === ticketId ? {...t, priority: newPriority} : t));
+      setTickets(tickets.map(t => t.id === ticketId ? {...t, priority: enPriority} : t));
     } catch (err) {
       console.error("Error updating priority:", err);
       alert("❌ Lỗi cập nhật ưu tiên: " + (err.response?.data?.message || err.message));
@@ -324,15 +349,20 @@ export default function Dashboard() {
   const handleUpdateTicket = async () => {
     if (!selectedTicket || !selectedTicket.id) return alert("Chưa chọn phiếu");
     const ticketId = selectedTicket.id;
-    const payload = { ...selectedTicket, notes };
+    const payload = {
+      ...selectedTicket,
+      status: statusViToEn(selectedTicket.status),
+      priority: priorityViToEn(selectedTicket.priority),
+      notes
+    };
     try {
       await axios.put(`/api/tickets/${ticketId}`, payload);
       await fetchTickets();
       if (payload.due_date) setSelectedDate(payload.due_date);
-      return alert("Đã cập nhật");
+      return alert("✅ Cập nhật thành công");
     } catch (err) {
       console.error("update error", err.response || err);
-      alert(err.response?.data?.message || "Lỗi cập nhật");
+      alert("❌ " + (err.response?.data?.message || "Lỗi cập nhật"));
     }
   };
 
