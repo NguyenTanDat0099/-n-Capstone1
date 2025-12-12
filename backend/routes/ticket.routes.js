@@ -27,6 +27,25 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
 });
 
+// GET alerts: overdue and completed tickets
+router.get("/alerts/summary", (req, res) => {
+  console.log("[tickets] GET /alerts/summary");
+  const sql = `
+    SELECT 
+      SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) as completed_count,
+      SUM(CASE WHEN status != 'Completed' AND due_date < CURDATE() THEN 1 ELSE 0 END) as overdue_count
+    FROM tickets
+  `;
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error("[tickets] GET alerts error:", err);
+      return res.status(500).json({ message: "Lỗi khi lấy thống kê" });
+    }
+    const result = results[0] || { completed_count: 0, overdue_count: 0 };
+    res.json(result);
+  });
+});
+
 // GET all tickets
 router.get("/", (req, res) => {
   console.log("[tickets] GET /");
@@ -231,6 +250,16 @@ router.put("/:id", (req, res) => {
         console.error("[tickets] PUT log insert error:", logErr);
         // do not fail main request if logging fails
       }
+      
+      // Create notification for the update
+      const notificationMsg = `Phiếu ${id} (${code || "N/A"}) đã được cập nhật${status ? ` - Trạng thái: ${status}` : ""}`;
+      const notifSql = "INSERT INTO notifications (user_id, message, is_read, created_at) VALUES (?, ?, 0, NOW())";
+      db.query(notifSql, [1, notificationMsg], (notifErr) => {
+        if (notifErr) {
+          console.error("[tickets] PUT notification insert error:", notifErr);
+        }
+      });
+      
       res.json({ message: "Phiếu đã được cập nhật" });
     });
   });
