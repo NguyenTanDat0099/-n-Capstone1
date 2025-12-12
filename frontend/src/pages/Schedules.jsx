@@ -1,6 +1,15 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 
+// Helper: convert date to YYYY-MM-DD format for input type="date"
+const toDateInputFormat = (d) => {
+  if (!d) return "";
+  if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+  const date = new Date(d);
+  if (isNaN(date)) return "";
+  return date.toISOString().slice(0, 10);
+};
+
 export default function Schedules() {
   const [schedules, setSchedules] = useState([]);
   const [tickets, setTickets] = useState([]);
@@ -377,7 +386,7 @@ export default function Schedules() {
                 <label className="block text-sm font-bold mb-2">📅 Ngày Bắt Đầu</label>
                 <input
                   type="date"
-                  value={formData.startDate}
+                  value={toDateInputFormat(formData.startDate)}
                   onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
                   className="w-full border-2 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
                 />
@@ -388,7 +397,7 @@ export default function Schedules() {
                 <label className="block text-sm font-bold mb-2">📅 Ngày Kết Thúc</label>
                 <input
                   type="date"
-                  value={formData.endDate}
+                  value={toDateInputFormat(formData.endDate)}
                   onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
                   className="w-full border-2 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
                 />
